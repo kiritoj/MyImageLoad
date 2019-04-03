@@ -68,8 +68,15 @@ public class MainActivity extends AppCompatActivity {
         recyclerView.setLayoutManager(manager);
         adapter = new RecyclerAdapter(pictureDataList,this);
         recyclerView.setAdapter(adapter);
-//        ImageView imageView = findViewById(R.id.test_iv);
-//        MyImageLoader.with(this).load("http://ww2.sinaimg.cn/large/7a8aed7bjw1ewym3nctp0j20i60qon23.jpg",imageView);
+//        final ImageView imageView = findViewById(R.id.test_iv);
+//        Button button = findViewById(R.id.test_bt);
+//        button.setOnClickListener(new View.OnClickListener() {
+//            @Override
+//            public void onClick(View v) {
+//                MyImageLoader.with(MainActivity.this).load("http://ww2.sinaimg.cn/large/7a8aed7bjw1ewym3nctp0j20i60qon23.jpg",imageView);
+//            }
+//        });
+
 
 
 

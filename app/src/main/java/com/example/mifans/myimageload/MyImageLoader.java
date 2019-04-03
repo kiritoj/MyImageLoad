@@ -6,6 +6,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.util.Log;
 import android.util.LruCache;
 import android.widget.ImageView;
 
@@ -70,7 +71,9 @@ public class MyImageLoader {
             @Override
             //bitmap的大小
             protected int sizeOf(String key, Bitmap bitmap) {
-                return bitmap.getByteCount() * bitmap.getHeight() / 1024;
+                int result = bitmap.getRowBytes() * bitmap.getHeight() / 1024;
+                Log.d("test", String.valueOf(result));
+                return result;
             }
         };
         //创建磁盘缓存
@@ -125,7 +128,9 @@ public class MyImageLoader {
             e.printStackTrace();
         }
         bitmap = loadBitmapFromDisk(url,height,width);
-        addBitmapToMem(url,bitmap);
+        if (bitmap!=null) {
+            addBitmapToMem(url, bitmap);
+        }
         return bitmap;
     }
 

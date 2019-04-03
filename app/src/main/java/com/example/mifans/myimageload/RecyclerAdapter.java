@@ -10,15 +10,19 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 
+import com.bumptech.glide.Glide;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class RecyclerAdapter extends RecyclerView.Adapter<RecyclerAdapter.ViewHolder> {
     private List<PictureData> pictureDataList = new ArrayList<>();
     private Context context;
+    MyImageLoader imageLoader;
     public RecyclerAdapter(List<PictureData> pictureDataList,Context context) {
         this.pictureDataList = pictureDataList;
         this.context = context;
+        imageLoader = MyImageLoader.with(context);
     }
 
     @NonNull
@@ -34,7 +38,8 @@ public class RecyclerAdapter extends RecyclerView.Adapter<RecyclerAdapter.ViewHo
     public void onBindViewHolder(@NonNull ViewHolder viewHolder, int i) {
         PictureData data = pictureDataList.get(i);
         viewHolder.textView.setText(data.getWho());
-        MyImageLoader.with(context).load(data.getUrl(), viewHolder.imageView);
+        imageLoader.load(data.getUrl(), viewHolder.imageView);
+        //MyImageLoader.with(context).load(data.getUrl(),viewHolder.imageView);这样会抛异常java.lang.IllegalStateException: edit didn't create file 0
     }
 
     @Override
