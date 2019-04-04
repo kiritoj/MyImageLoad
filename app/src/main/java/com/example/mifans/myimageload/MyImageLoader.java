@@ -1,14 +1,19 @@
 package com.example.mifans.myimageload;
 
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.support.annotation.DrawableRes;
 import android.util.Log;
 import android.util.LruCache;
 import android.widget.ImageView;
+
+
+import com.jakewharton.disklrucache.DiskLruCache;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -17,6 +22,7 @@ import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.annotation.Retention;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -31,8 +37,10 @@ import java.util.concurrent.TimeUnit;
 public class MyImageLoader {
     private Context context;
     private LruCache<String, Bitmap> lruCache;//内存缓存
-    private DiskLruCache diskLruCache;//磁盘缓存
+    private static DiskLruCache diskLruCache;//磁盘缓存
     private ImageRizer imageRizer = new ImageRizer();//压缩类
+    private static boolean PLACEHOLDER = false;//占位图标志符
+    private ImageView imageView;
     private static final int CPU_COUNT = Runtime.getRuntime().availableProcessors();
     private static final ThreadFactory THREAD_FACTORY = new ThreadFactory() {
         @Override
@@ -189,11 +197,11 @@ public class MyImageLoader {
 
 
     //加载图片，三级缓存，检查内存缓存，磁盘缓存，最后网络加载
-    public void load(String url, ImageView imageView) {
-        load(url, imageView, 0, 0);
+    public void load(String url) {
+        load(url, 0, 0);
     }
 
-    public void load(final String url, final ImageView imageView, final int reqHeight, final int reaWidth) {
+    public void load(final String url, final int reqHeight, final int reaWidth) {
         //设置tag，防止图片出现错位
         imageView.setTag(url);
         Bitmap bitmap;
@@ -266,6 +274,14 @@ public class MyImageLoader {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+    public MyImageLoader placeholder(@DrawableRes int resid){
+        imageView.setImageResource(resid);
+        return this;
+    }
+    public MyImageLoader into(ImageView imageView){
+        this.imageView = imageView;
+        return this;
     }
 }
 class LoadResult{

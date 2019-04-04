@@ -9,51 +9,59 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-
 import com.bumptech.glide.Glide;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class RecyclerAdapter extends RecyclerView.Adapter<RecyclerAdapter.ViewHolder> {
-    private List<PictureData> pictureDataList = new ArrayList<>();
+    private List<String> urllist = new ArrayList<>();
     private Context context;
-    MyImageLoader imageLoader;
-    public RecyclerAdapter(List<PictureData> pictureDataList,Context context) {
-        this.pictureDataList = pictureDataList;
+    private boolean isload = true;//是否加载图片
+
+    public RecyclerAdapter(List<String> urllistt, Context context) {
+        this.urllist = urllistt;
         this.context = context;
-        imageLoader = MyImageLoader.with(context);
     }
 
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup viewGroup, int i) {
         View view = LayoutInflater.from(viewGroup.getContext())
-                .inflate(R.layout.item,viewGroup,false);
+                .inflate(R.layout.item, viewGroup, false);
         ViewHolder holder = new ViewHolder(view);
         return holder;
     }
 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder viewHolder, int i) {
-        PictureData data = pictureDataList.get(i);
-        viewHolder.textView.setText(data.getWho());
-        imageLoader.load(data.getUrl(), viewHolder.imageView);
-        //MyImageLoader.with(context).load(data.getUrl(),viewHolder.imageView);这样会抛异常java.lang.IllegalStateException: edit didn't create file 0
+        String url = urllist.get(i);
+
+
+        if (isload) {
+            MyImageLoader.with(context).into(viewHolder.imageView).placeholder(R.drawable.timg).load(url);
+        } else {
+            viewHolder.imageView.setImageResource(R.drawable.timg);
+        }
+
+
     }
 
     @Override
     public int getItemCount() {
-        return pictureDataList.size();
+        return urllist.size();
     }
 
     public class ViewHolder extends RecyclerView.ViewHolder {
         ImageView imageView;
-        TextView textView;
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
             imageView = itemView.findViewById(R.id.image_item);
-            textView = itemView.findViewById(R.id.who_tv);
+
         }
+    }
+
+    public void setIsload(boolean isload) {
+        this.isload = isload;
     }
 }
