@@ -7,6 +7,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.UrlQuerySanitizer;
+import android.os.Environment;
 import android.os.Looper;
 import android.renderscript.ScriptGroup;
 import android.support.annotation.NonNull;
@@ -14,12 +15,17 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.StaggeredGridLayoutManager;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Toast;
+
+import com.example.mifans.myimageload.Interface.PicService;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -33,11 +39,19 @@ import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.List;
 
+import retrofit2.Retrofit;
+import retrofit2.adapter.rxjava.RxJavaCallAdapterFactory;
+import retrofit2.converter.gson.GsonConverterFactory;
+import rx.Subscriber;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.schedulers.Schedulers;
+
 public class MainActivity extends AppCompatActivity {
     RecyclerView recyclerView;
     RecyclerAdapter adapter;
     List<String> pictureDataList = new ArrayList<>();
     ProgressDialog progressDialog;
+    PicBean mpicBean;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,61 +59,89 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         progressDialog = new ProgressDialog(this);
         recyclerView = findViewById(R.id.recycler_view);
-        String JSONdata = loadJSONdata();
-        if (TextUtils.isEmpty(JSONdata)){
+        //String JSONdata = loadJSONdata();
+        //if (TextUtils.isEmpty(JSONdata)){
             progressDialog.setTitle("第一次加载时间会稍长一点");
             progressDialog.setMessage("loading");
             progressDialog.setCancelable(false);
             progressDialog.show();
-            HttpUtil.sendHttpRequest("http://gank.io/api/data/%E7%A6%8F%E5%88%A9/0/0", new HttpUtilListener() {
-                @Override
-                public void success(String response) {
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl("http://gank.io/api/data/%E7%A6%8F%E5%88%A9/")
+                .addConverterFactory(GsonConverterFactory.create())
+                .addCallAdapterFactory(RxJavaCallAdapterFactory.create())
+                .build();
+        PicService picService = retrofit.create(PicService.class);
+        picService.getPicBean("http://gank.io/api/data/%E7%A6%8F%E5%88%A9/0/0")
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Subscriber<PicBean>() {
+                    @Override
+                    public void onCompleted() {
 
-                    parseJSONWithJSONObject(response);
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            adapter.notifyDataSetChanged();
-                        }
-                    });
-                    progressDialog.dismiss();
-                    saveJSONdata(response);
+                    }
 
-                }
+                    @Override
+                    public void onError(Throwable e) {
 
-                //
-                @Override
-                public void failed() {
-                    Looper.prepare();
-                    Toast.makeText(MainActivity.this, "好像出了一点问题", Toast.LENGTH_SHORT).show();
-                }
-            });
-        }else {
-            parseJSONWithJSONObject(JSONdata);
-        }
+                    }
 
+                    @Override
+                    public void onNext(PicBean picBean) {
+                        adapter = new RecyclerAdapter(picBean, MainActivity.this);
+                        recyclerView.setAdapter(adapter);
+                        progressDialog.dismiss();
+                    }
+                });
+//            HttpUtil.sendHttpRequest("http://gank.io/api/data/%E7%A6%8F%E5%88%A9/0/0", new HttpUtilListener() {
+//                @Override
+//                public void success(String response) {
+//
+//                    parseJSONWithJSONObject(response);
+//                    runOnUiThread(new Runnable() {
+//                        @Override
+//                        public void run() {
+//                            adapter.notifyDataSetChanged();
+//                        }
+//                    });
+//                    progressDialog.dismiss();
+//                    saveJSONdata(response);
+//
+//                }
+//
+//
+//                @Override
+//                public void failed() {
+//                    Looper.prepare();
+//                    Toast.makeText(MainActivity.this, "好像出了一点问题", Toast.LENGTH_SHORT).show();
+//                }
+//            });
+//        }else {
+//            parseJSONWithJSONObject(JSONdata);
+//        }
+
+        LinearLayoutManager layoutManager = new LinearLayoutManager(this);
         StaggeredGridLayoutManager manager = new StaggeredGridLayoutManager(2
                 , StaggeredGridLayoutManager.VERTICAL);
+        recyclerView.setLayoutManager(layoutManager);
 
-        recyclerView.setLayoutManager(manager);
-        adapter = new RecyclerAdapter(pictureDataList, this);
-        recyclerView.setAdapter(adapter);
+
+
         //添加recycleview滚动监听
-        recyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
-            @Override
-            public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int newState) {
-                super.onScrollStateChanged(recyclerView, newState);
-                if (newState != RecyclerView.SCROLL_STATE_IDLE) {
-                    adapter.setIsload(false);
-                    adapter.notifyDataSetChanged();
-//                    Glide.with(MainActivity.this).resumeRequests();
-                } else {
-                    adapter.setIsload(true);
-                    adapter.notifyDataSetChanged();
-//                    Glide.with(MainActivity.this).pauseRequests();
-                }
-            }
-        });
+//        recyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+//            @Override
+//            public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int newState) {
+//                super.onScrollStateChanged(recyclerView, newState);
+//                if (newState == RecyclerView.SCROLL_STATE_DRAGGING | newState == RecyclerView.SCROLL_STATE_IDLE) {
+//                    adapter.setIsload(true);
+//                    adapter.notifyDataSetChanged();
+//
+//                } else {
+//
+//                    adapter.setIsload(false);
+//                    adapter.notifyDataSetChanged();
+//                }
+//            }
+//        });
 
 
     }

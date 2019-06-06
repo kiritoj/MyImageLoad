@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="CircleView">
+        <!--是否带有外部圆框-->
+        <attr name="hasbox" format="boolean"/>
+        <!--外部圆框的宽度-->
+        <attr name="boxwidth" format="dimension"/>
+        <!--外部圆框的颜色-->
+        <attr name="boxcolor" format="color"/>
+    </declare-styleable>
+</resources>

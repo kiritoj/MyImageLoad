@@ -1,8 +1,8 @@
 package com.example.mifans.myimageload;
 
 import android.content.Context;
-import android.content.res.Resources;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
@@ -13,6 +13,7 @@ import android.util.LruCache;
 import android.widget.ImageView;
 
 
+import com.example.mifans.myimageload.Interface.LoadPic;
 import com.jakewharton.disklrucache.DiskLruCache;
 
 import java.io.BufferedInputStream;
@@ -21,18 +22,23 @@ import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.annotation.Retention;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.concurrent.Executor;
+import java.sql.Connection;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+
+import okhttp3.ResponseBody;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
 
 public class MyImageLoader {
     private Context context;
@@ -48,23 +54,25 @@ public class MyImageLoader {
             return new Thread(r);
         }
     };
+
     //线程池，网络获取图片
-    private static final ThreadPoolExecutor EXECUTOR = new ThreadPoolExecutor(CPU_COUNT+1
-            ,2*CPU_COUNT+1
-            ,10
-            ,TimeUnit.SECONDS
-            ,new LinkedBlockingDeque<Runnable>()
-            ,THREAD_FACTORY);
-    private Handler handler = new Handler(Looper.getMainLooper()){
+    private static final ThreadPoolExecutor EXECUTOR = new ThreadPoolExecutor(CPU_COUNT + 1
+            , 2 * CPU_COUNT + 1
+            , 10
+            , TimeUnit.SECONDS
+            , new LinkedBlockingDeque<Runnable>()
+            , THREAD_FACTORY);
+    private Handler handler = new Handler(Looper.getMainLooper()) {
         @Override
         public void handleMessage(Message msg) {
             LoadResult loadResult = (LoadResult) msg.obj;
-            ImageView imageView = loadResult.imageView;;
+            ImageView imageView = loadResult.imageView;
+            ;
             Bitmap bitmap = loadResult.bitmap;
             //检查Tag是否改变，没有改变就设置Bitmap，防止错位
-            if (imageView.getTag().equals(loadResult.url)){
-                imageView.setImageBitmap(bitmap);
-            }
+
+            imageView.setImageBitmap(bitmap);
+
 
         }
     };
@@ -84,6 +92,7 @@ public class MyImageLoader {
                 return result;
             }
         };
+
         //创建磁盘缓存
         File director = getDirecyor(this.context, "Bitmap");
         if (!director.exists()) {
@@ -101,72 +110,171 @@ public class MyImageLoader {
         return new MyImageLoader(context);
     }
 
+    //加载图片，三级缓存，检查内存缓存，磁盘缓存，最后网络加载
+    public void load(String url) {
+        load(url, 0, 0);
+    }
+
+    public void load(final String url, final int reqHeight, final int reaWidth) {
+        //设置tag，防止图片出现错位
+        imageView.setTag(url);
+        Bitmap bitmap;
+        //首先检查内存缓存
+        bitmap = loadBitmapfromMem(url);
+        if (bitmap != null) {
+            imageView.setImageBitmap(bitmap);
+            return;
+        }
+        //然后检查磁盘缓存
+        bitmap = loadBitmapFromDisk(url, reqHeight, reaWidth);
+        if (bitmap != null) {
+            imageView.setImageBitmap(bitmap);
+            return;
+        }
+        //如果都没有，开启线程取网络获取
+
+        //EXECUTOR.execute(runnable);
+//        Runnable runnable = new Runnable() {
+//            @Override
+//            public void run() {
+//                Bitmap bitmap = loadPicFromHttp(url,0,0);
+//                LoadResult result = new LoadResult(imageView,url,bitmap);
+//                handler.obtainMessage(1,result).sendToTarget();
+//            }
+//        };
+//        EXECUTOR.execute(runnable);
+        loadPicFromHttp(url,0,0);
+
+    }
     //从内存缓存中读取Bitmap
-    private Bitmap loadBitmapfromMem(String url) {
-        String key = hashKeyUrl(url);
+    private Bitmap loadBitmapfromMem(String key) {
         return lruCache.get(key);
     }
 
     //添加缓存到内存中
-    private void addBitmapToMem(String url, Bitmap bitmap) {
-        String key = hashKeyUrl(url);
-        if (loadBitmapfromMem(url) == null) {
-            lruCache.put(key, bitmap);
-        }
+    private void addBitmapToMem(String key, Bitmap bitmap) {
+//        if (lruCache.get(key) == null) {
+//            lruCache.put(key, bitmap);
+//        }
+
     }
 
-    //添加缓存到磁盘缓存中,需要从网络请求数据并写入，还要添加到内存缓存中,height和width是imageView的大小
-    private Bitmap addBitmapToDiskFromHttp(String url,int height,int width) {
-        Bitmap bitmap;
-        String key = hashKeyUrl(url);
-        try {
-            DiskLruCache.Editor editor = diskLruCache.edit(key);
-            if (editor != null){
-                OutputStream outputStream = editor.newOutputStream(0);
-                if (downloadBitmapFromHttp(url,outputStream)){
-                    editor.commit();
-                }else {
-                    editor.abort();
+    /**
+     * 如果磁盘缓存和内存缓存都没有，就从网络加载图片并写入磁盘缓存和内存缓存
+     *
+     * @param url    图片的地址
+     * @param height imageview的高
+     * @param width  imageview的宽
+     * @return
+     */
+    private void loadPicFromHttp(String url, int height, int width) {
+        final String key = hashKeyUrl(url);
+        Log.d("testurl", "loadPicFromHttp: "+key);
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl("https://ww1.sinaimg.cn/large/")
+                .build();
+        LoadPic loadPic = retrofit.create(LoadPic.class);
+        Call<ResponseBody> call = loadPic.getPicStream(url);
+        Bitmap bitmap = null;
+        //同步请求方式
+//        try {
+//            Response<ResponseBody>  response= call.execute();
+//            if (response.body() != null){
+//                InputStream inputStream = response.body().byteStream();
+//                bitmap = BitmapFactory.decodeStream(inputStream);
+////                //imageView.setImageBitmap(bitmap);
+//                addBitmapToMem(key, bitmap);
+//                try {
+//                    DiskLruCache.Editor editor = diskLruCache.edit(key);
+//                    if (editor != null) {
+//                        OutputStream outputStream = editor.newOutputStream(0);
+//                        if (addIntoDiskCache(inputStream, outputStream)) {
+//                            editor.commit();
+//                        } else {
+//                            editor.abort();
+//                        }
+//                        diskLruCache.flush();
+//                    }
+//                } catch (IOException e) {
+//                    e.printStackTrace();
+//                }
+//            }
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//        //异步请求方式
+        call.enqueue(new Callback<ResponseBody>() {
+            @Override
+            //onReponse是在主线程运行的，可以直接更新ui
+            public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                if (response.body()!=null) {
+                   InputStream inputStream = response.body().byteStream();
+                    Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+                    imageView.setImageBitmap(bitmap);
+                    addBitmapToMem(key, bitmap);
+
+
+                    //内存缓存
+
+                    //磁盘缓存
+                    try {
+                        DiskLruCache.Editor editor = diskLruCache.edit(key);
+                        if (editor != null) {
+                            OutputStream outputStream = editor.newOutputStream(0);
+                            if (addIntoDiskCache(inputStream, outputStream)) {
+                                editor.commit();
+                            } else {
+                                editor.abort();
+                            }
+                            diskLruCache.flush();
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                 }
-                diskLruCache.flush();
+
+
             }
 
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        bitmap = loadBitmapFromDisk(url,height,width);
-        if (bitmap!=null) {
-            addBitmapToMem(url, bitmap);
-        }
-        return bitmap;
+            @Override
+            public void onFailure(Call<ResponseBody> call, Throwable t) {
+                imageView.setImageResource(R.drawable.error_1);
+            }
+        });
+        //return bitmap;
     }
 
     //从磁盘中读出缓存
-    private Bitmap loadBitmapFromDisk(String url,int height,int width){
+    private Bitmap loadBitmapFromDisk(String url, int height, int width) {
         Bitmap bitmap = null;
         String key = hashKeyUrl(url);
         try {
             DiskLruCache.Snapshot snapshot = diskLruCache.get(key);
-            if (snapshot != null){
+            if (snapshot != null) {
                 FileInputStream in = (FileInputStream) snapshot.getInputStream(0);
                 FileDescriptor fd = in.getFD();
                 //压缩后的Bitmap
-                bitmap = imageRizer.decodeFromFile(fd,height,width);
+                bitmap = imageRizer.decodeFromFileDescriptor(fd, height, width);
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
         return bitmap;
     }
-    private boolean downloadBitmapFromHttp(String url, OutputStream outputStream) {
-        HttpURLConnection connection = null;
+
+    /**
+     * 添加磁盘缓存
+     *
+     * @param inputStream  从网络获取的输入流
+     * @param outputStream 磁盘写入editer的输出流
+     * @return 写入磁盘缓存是否成功
+     */
+    private boolean addIntoDiskCache(InputStream inputStream, OutputStream outputStream) {
+
         BufferedInputStream input = null;
         BufferedOutputStream output = null;
         try {
-            URL url1 = new URL(url);
-            connection = (HttpURLConnection) url1.openConnection();
-            input = new BufferedInputStream(connection.getInputStream());
+            input = new BufferedInputStream(inputStream);
             output = new BufferedOutputStream(outputStream);
             int b;
             while ((b = input.read()) != -1) {
@@ -176,9 +284,6 @@ public class MyImageLoader {
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            if (connection != null) {
-                connection.disconnect();
-            }
 
             try {
                 if (input != null) {
@@ -196,38 +301,6 @@ public class MyImageLoader {
 
 
 
-    //加载图片，三级缓存，检查内存缓存，磁盘缓存，最后网络加载
-    public void load(String url) {
-        load(url, 0, 0);
-    }
-
-    public void load(final String url, final int reqHeight, final int reaWidth) {
-        //设置tag，防止图片出现错位
-        imageView.setTag(url);
-        Bitmap bitmap;
-        //首先检查内存缓存
-        bitmap = loadBitmapfromMem(url);
-        if (bitmap != null) {
-            imageView.setImageBitmap(bitmap);
-            return;
-        }
-        //然后检查磁盘缓存
-        bitmap = loadBitmapFromDisk(url,reqHeight,reaWidth);
-        if (bitmap != null){
-            imageView.setImageBitmap(bitmap);
-            return;
-        }
-        //如果都没有，开启线程取网络获取
-        Runnable runnable = new Runnable() {
-            @Override
-            public void run() {
-                Bitmap bitmap1 = addBitmapToDiskFromHttp(url,reqHeight,reaWidth);
-                LoadResult result = new LoadResult(imageView,url,bitmap1);
-                handler.obtainMessage(1,result).sendToTarget();
-            }
-        };
-        EXECUTOR.execute(runnable);
-    }
 
     //缓存的key加密
     private String hashKeyUrl(String url) {
@@ -267,29 +340,33 @@ public class MyImageLoader {
         }
         return new File(cachePath + File.separator + name);
     }
+
     //清除缓存
-    public void removeCache(){
+    public void removeCache() {
         try {
             diskLruCache.delete();
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
-    public MyImageLoader placeholder(@DrawableRes int resid){
+
+    public MyImageLoader placeholder(@DrawableRes int resid) {
         imageView.setImageResource(resid);
         return this;
     }
-    public MyImageLoader into(ImageView imageView){
+
+    public MyImageLoader into(ImageView imageView) {
         this.imageView = imageView;
         return this;
     }
 }
-class LoadResult{
+
+class LoadResult {
     public ImageView imageView;
     public String url;
     public Bitmap bitmap;
 
-    public LoadResult(ImageView imageView, String url,Bitmap bitmap) {
+    public LoadResult(ImageView imageView, String url, Bitmap bitmap) {
         this.imageView = imageView;
         this.url = url;
         this.bitmap = bitmap;
