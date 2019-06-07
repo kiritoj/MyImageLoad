@@ -1,4 +1,9 @@
 # Imageloader 
-* 安装包
-图片加载库的部分是在书上基础上改的，但是过程理解清楚了。监听了recycleview的滑动，在滑动时不会加载图片解决了滑动卡顿的问题。但是使用体验嘛，不怎么好。
-# 最后，张俊豪导师🐮🍺，哈哈
+* [安装包](https://github.com/kiritoj/MyImageLoad/blob/master/app/release/app-release.apk)
+* 获取所有图片的url用retrofit+rxjava实现的
+* 获取单张图片的输入流用retrofit实现的
+* 查看大图
+* 滑动体验不太好
+* gif
+![](http://ww1.sinaimg.cn/mw690/006nwaiFly1g3seq5vlefg30a70j7npg.gif)
+# 最后，豪哥🐮🍺，哈哈
