@@ -7,5 +7,8 @@
         <item name="colorPrimaryDark">#FF7F50</item>
         <item name="colorAccent">@color/colorAccent</item>
     </style>
+    <style name="NoBarTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimaryDark">#000000</item>
+    </style>
 
 </resources>

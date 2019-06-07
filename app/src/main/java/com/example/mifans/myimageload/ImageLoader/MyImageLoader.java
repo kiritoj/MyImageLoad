@@ -1,12 +1,9 @@
-package com.example.mifans.myimageload;
+package com.example.mifans.myimageload.ImageLoader;
 
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Environment;
-import android.os.Handler;
-import android.os.Looper;
-import android.os.Message;
 import android.support.annotation.DrawableRes;
 import android.util.Log;
 import android.util.LruCache;
@@ -14,6 +11,7 @@ import android.widget.ImageView;
 
 
 import com.example.mifans.myimageload.Interface.LoadPic;
+import com.example.mifans.myimageload.R;
 import com.jakewharton.disklrucache.DiskLruCache;
 
 import java.io.BufferedInputStream;
@@ -24,15 +22,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.sql.Connection;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 import okhttp3.ResponseBody;
 import retrofit2.Call;
@@ -55,27 +47,26 @@ public class MyImageLoader {
         }
     };
 
-    //线程池，网络获取图片
-    private static final ThreadPoolExecutor EXECUTOR = new ThreadPoolExecutor(CPU_COUNT + 1
-            , 2 * CPU_COUNT + 1
-            , 10
-            , TimeUnit.SECONDS
-            , new LinkedBlockingDeque<Runnable>()
-            , THREAD_FACTORY);
-    private Handler handler = new Handler(Looper.getMainLooper()) {
-        @Override
-        public void handleMessage(Message msg) {
-            LoadResult loadResult = (LoadResult) msg.obj;
-            ImageView imageView = loadResult.imageView;
-            ;
-            Bitmap bitmap = loadResult.bitmap;
-            //检查Tag是否改变，没有改变就设置Bitmap，防止错位
-
-            imageView.setImageBitmap(bitmap);
-
-
-        }
-    };
+//    //线程池，网络获取图片
+//    private static final ThreadPoolExecutor EXECUTOR = new ThreadPoolExecutor(CPU_COUNT + 1
+//            , 2 * CPU_COUNT + 1
+//            , 10
+//            , TimeUnit.SECONDS
+//            , new LinkedBlockingDeque<Runnable>()
+//            , THREAD_FACTORY);
+//    private Handler handler = new Handler(Looper.getMainLooper()) {
+//        @Override
+//        public void handleMessage(Message msg) {
+//            LoadResult loadResult = (LoadResult) msg.obj;
+//            ImageView imageView = loadResult.imageView;
+//            ;
+//            Bitmap bitmap = loadResult.bitmap;
+//            //检查Tag是否改变，没有改变就设置Bitmap，防止错位
+//            imageView.setImageBitmap(bitmap);
+//
+//
+//        }
+//    };
 
     //实例化imageloader以及创建内存缓存和磁盘缓存
     private MyImageLoader(Context context) {
@@ -131,9 +122,11 @@ public class MyImageLoader {
             imageView.setImageBitmap(bitmap);
             return;
         }
-        //如果都没有，开启线程取网络获取
 
-        //EXECUTOR.execute(runnable);
+        //如果都没有，从网络加载
+        loadPicFromHttp(url,0,0);
+
+
 //        Runnable runnable = new Runnable() {
 //            @Override
 //            public void run() {
@@ -143,19 +136,7 @@ public class MyImageLoader {
 //            }
 //        };
 //        EXECUTOR.execute(runnable);
-        loadPicFromHttp(url,0,0);
 
-    }
-    //从内存缓存中读取Bitmap
-    private Bitmap loadBitmapfromMem(String key) {
-        return lruCache.get(key);
-    }
-
-    //添加缓存到内存中
-    private void addBitmapToMem(String key, Bitmap bitmap) {
-//        if (lruCache.get(key) == null) {
-//            lruCache.put(key, bitmap);
-//        }
 
     }
 
@@ -169,20 +150,19 @@ public class MyImageLoader {
      */
     private void loadPicFromHttp(String url, int height, int width) {
         final String key = hashKeyUrl(url);
-        Log.d("testurl", "loadPicFromHttp: "+key);
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl("https://ww1.sinaimg.cn/large/")
                 .build();
         LoadPic loadPic = retrofit.create(LoadPic.class);
         Call<ResponseBody> call = loadPic.getPicStream(url);
-        Bitmap bitmap = null;
-        //同步请求方式
+
+        //同步请求方式，需使用hander配合更新UI
 //        try {
 //            Response<ResponseBody>  response= call.execute();
 //            if (response.body() != null){
 //                InputStream inputStream = response.body().byteStream();
 //                bitmap = BitmapFactory.decodeStream(inputStream);
-////                //imageView.setImageBitmap(bitmap);
+//                imageView.setImageBitmap(bitmap);
 //                addBitmapToMem(key, bitmap);
 //                try {
 //                    DiskLruCache.Editor editor = diskLruCache.edit(key);
@@ -202,21 +182,20 @@ public class MyImageLoader {
 //        } catch (IOException e) {
 //            e.printStackTrace();
 //        }
-//        //异步请求方式
+
+        //异步请求方式,直接在onResponse更新UI
         call.enqueue(new Callback<ResponseBody>() {
             @Override
             //onReponse是在主线程运行的，可以直接更新ui
             public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
                 if (response.body()!=null) {
-                   InputStream inputStream = response.body().byteStream();
+                    InputStream inputStream = response.body().byteStream();
                     Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
                     imageView.setImageBitmap(bitmap);
+
+                    //添加内存缓存
                     addBitmapToMem(key, bitmap);
-
-
-                    //内存缓存
-
-                    //磁盘缓存
+                    //添加磁盘缓存
                     try {
                         DiskLruCache.Editor editor = diskLruCache.edit(key);
                         if (editor != null) {
@@ -241,8 +220,21 @@ public class MyImageLoader {
                 imageView.setImageResource(R.drawable.error_1);
             }
         });
-        //return bitmap;
     }
+    //从内存缓存中读取Bitmap
+    private Bitmap loadBitmapfromMem(String key) {
+        return lruCache.get(key);
+    }
+
+    //添加缓存到内存中
+    private void addBitmapToMem(String key, Bitmap bitmap) {
+        if (lruCache.get(key) == null) {
+            lruCache.put(key, bitmap);
+        }
+
+    }
+
+
 
     //从磁盘中读出缓存
     private Bitmap loadBitmapFromDisk(String url, int height, int width) {
@@ -361,15 +353,15 @@ public class MyImageLoader {
     }
 }
 
-class LoadResult {
-    public ImageView imageView;
-    public String url;
-    public Bitmap bitmap;
-
-    public LoadResult(ImageView imageView, String url, Bitmap bitmap) {
-        this.imageView = imageView;
-        this.url = url;
-        this.bitmap = bitmap;
-    }
-}
+//class LoadResult {
+//    public ImageView imageView;
+//    public String url;
+//    public Bitmap bitmap;
+//
+//    public LoadResult(ImageView imageView, String url, Bitmap bitmap) {
+//        this.imageView = imageView;
+//        this.url = url;
+//        this.bitmap = bitmap;
+//    }
+//}
 

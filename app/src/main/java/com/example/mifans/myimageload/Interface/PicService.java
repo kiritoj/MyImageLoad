@@ -1,6 +1,6 @@
 package com.example.mifans.myimageload.Interface;
 
-import com.example.mifans.myimageload.PicBean;
+import com.example.mifans.myimageload.Bean.PicBean;
 
 
 

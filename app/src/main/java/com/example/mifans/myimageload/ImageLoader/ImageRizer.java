@@ -1,4 +1,4 @@
-package com.example.mifans.myimageload;
+package com.example.mifans.myimageload.ImageLoader;
 
 import android.content.res.Resources;
 import android.graphics.Bitmap;
